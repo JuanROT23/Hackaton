@@ -8,7 +8,6 @@ Sistema de apoyo a la toma de decisiones para el equipo de operaciones de COSCO 
 
 ## Estructura del Repositorio
 * `/data` -> Contiene el archivo histórico simulado (`COSCO_Bogota_SIMULADA_2022_2026.xlsx`).
-* `/src` -> Código fuente del motor de recomendación y la interfaz.
 
 ## Criterios de Evaluación Cubiertos
 1. **Calidad de la recomendación:** Ponderación multicriterio basada en las prioridades de la gerencia.
