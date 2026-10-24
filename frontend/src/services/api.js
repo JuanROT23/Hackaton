@@ -1,6 +1,8 @@
-// Llamadas HTTP al backend FastAPI. En desarrollo, Vite reenvía /api al backend.
-const BASE = import.meta.env.VITE_API_URL || ''
-const API = `${BASE}/api/v1`
+// Llamadas HTTP al backend FastAPI.
+// En producción (Netlify) VITE_API_URL debe apuntar al backend publicado, p. ej. https://mi-api.onrender.com
+// (sin "/" al final). Vite la incrusta al compilar: si se cambia, hay que volver a desplegar.
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '')
+const API = `${API_URL}/api/v1`
 
 /** Error del backend con su código HTTP y un mensaje legible. */
 export class ApiError extends Error {
@@ -29,7 +31,7 @@ async function pedir(ruta, opciones = {}) {
       ...opciones,
     })
   } catch {
-    throw new ApiError(0, 'No se pudo conectar con el backend. ¿Está corriendo en el puerto 8000?')
+    throw new ApiError(0, `No se pudo conectar con el backend (${API_URL}). Verifique que esté en línea.`)
   }
   const cuerpo = await respuesta.json().catch(() => null)
   if (!respuesta.ok) {
