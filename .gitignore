@@ -218,3 +218,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Proyecto COSCO (Sabana Hack 2026) ---
+# Bases de datos locales (se regeneran con backend/scripts/seed.py)
+*.db
+*.sqlite3
+# Datos entregados por COSCO: solo para el reto, nunca al repositorio
+data/originales/
+# Frontend
+node_modules/
+# Excel de COSCO: se usa localmente para el seed, no se sube
+COSCO_*.xlsx
