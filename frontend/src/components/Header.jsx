@@ -1,4 +1,4 @@
-import { Anchor, BarChart3, ClipboardList, Globe, Headset, LayoutDashboard } from 'lucide-react'
+import { BarChart3, ClipboardList, Globe, Headset, LayoutDashboard } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { IDIOMAS } from '../i18n'
 
@@ -61,8 +61,9 @@ export default function Header({ activa, onCambiar, onSoporte }) {
       <div className="bg-cosco-900 text-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 pt-3 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex items-center gap-3 pb-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-acento shadow-md ring-2 ring-white/30">
-              <Anchor className="h-6 w-6 text-white" aria-hidden />
+            {/* Fondo blanco: el azul oscuro del logo casi no se ve sobre el azul marino del header */}
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white shadow-md ring-2 ring-white/30">
+              <img src="/logo-red.png" className="h-10 w-10 object-contain" alt="COSCO Decision Hub" />
             </div>
             <div>
               <h1 className="text-xl font-extrabold tracking-tight">
