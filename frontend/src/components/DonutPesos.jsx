@@ -1,17 +1,19 @@
+import { useTranslation } from 'react-i18next'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { COLOR_FACTOR } from '../theme/colores'
 import { formatoPct } from '../utils/formato'
 
-// Nombres que ve el usuario para cada peso
+// Factores de decisión; el nombre visible sale del diccionario (factores.<clave>)
 export const CRITERIOS = [
-  { clave: 'precio', nombre: 'Costo', color: COLOR_FACTOR.precio },
-  { clave: 'confiabilidad', nombre: 'Confiabilidad', color: COLOR_FACTOR.confiabilidad },
-  { clave: 'tiempo', nombre: 'Rapidez', color: COLOR_FACTOR.tiempo },
+  { clave: 'precio', color: COLOR_FACTOR.precio },
+  { clave: 'confiabilidad', color: COLOR_FACTOR.confiabilidad },
+  { clave: 'tiempo', color: COLOR_FACTOR.tiempo },
 ]
 
 /** Donut con los pesos (%) de cada factor y su leyenda. */
 export default function DonutPesos({ pesos }) {
-  const datos = CRITERIOS.map((c) => ({ ...c, valor: pesos[c.clave] }))
+  const { t } = useTranslation()
+  const datos = CRITERIOS.map((c) => ({ ...c, nombre: t(`factores.${c.clave}`), valor: pesos[c.clave] }))
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row">
       <div className="relative h-44 w-44 shrink-0">

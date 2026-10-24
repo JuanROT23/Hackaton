@@ -1,6 +1,8 @@
 // Piezas de interfaz pequeñas y reutilizables.
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+import { tEstado } from '../utils/traducir'
 
 export function Tarjeta({ titulo, icono: Icono, acciones, children, className = '' }) {
   return (
@@ -37,13 +39,18 @@ export function Insignia({ children, tono = 'bg-slate-100 text-slate-700 ring-sl
   )
 }
 
-export const InsigniaEstado = ({ estado }) => <Insignia tono={COLORES_ESTADO[estado]}>{estado}</Insignia>
+/** Estado de la solicitud: el color depende del valor original y el texto se traduce. */
+export function InsigniaEstado({ estado }) {
+  const { t } = useTranslation()
+  return <Insignia tono={COLORES_ESTADO[estado]}>{tEstado(t, estado)}</Insignia>
+}
 
-export function Cargando({ texto = 'Cargando…' }) {
+export function Cargando({ texto }) {
+  const { t } = useTranslation()
   return (
     <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500" role="status">
       <Loader2 className="h-5 w-5 animate-spin text-cosco-700" aria-hidden />
-      {texto}
+      {texto ?? t('comun.cargando')}
     </div>
   )
 }
@@ -55,6 +62,7 @@ const ESTILOS_ALERTA = {
 }
 
 export function Alerta({ tipo = 'error', children, onCerrar }) {
+  const { t } = useTranslation()
   const { icono: Icono, clases } = ESTILOS_ALERTA[tipo]
   return (
     <div
@@ -64,7 +72,7 @@ export function Alerta({ tipo = 'error', children, onCerrar }) {
       <Icono className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
       <div className="flex-1">{children}</div>
       {onCerrar && (
-        <button type="button" onClick={onCerrar} className="rounded p-0.5 hover:bg-black/5" aria-label="Cerrar">
+        <button type="button" onClick={onCerrar} className="rounded p-0.5 hover:bg-black/5" aria-label={t('comun.cerrar')}>
           <X className="h-4 w-4" />
         </button>
       )}
@@ -90,7 +98,8 @@ export function Boton({ variante = 'primario', className = '', children, ...prop
 }
 
 /** Ventana modal; se cierra con Escape o con el botón X. */
-export function Modal({ titulo, abierto, onCerrar, children }) {
+export function Modal({ titulo, abierto, onCerrar, children, etiquetaCerrar }) {
+  const { t } = useTranslation()
   useEffect(() => {
     if (!abierto) return undefined
     const alPresionar = (e) => e.key === 'Escape' && onCerrar()
@@ -105,7 +114,7 @@ export function Modal({ titulo, abierto, onCerrar, children }) {
       <div role="dialog" aria-modal="true" aria-label={titulo} className="w-full max-w-4xl rounded-2xl bg-slate-50 shadow-2xl">
         <div className="flex items-center justify-between rounded-t-2xl bg-white px-6 py-4 ring-1 ring-slate-200">
           <h2 className="text-lg font-semibold text-cosco-950">{titulo}</h2>
-          <button type="button" onClick={onCerrar} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">
+          <button type="button" onClick={onCerrar} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label={etiquetaCerrar ?? t('comun.cerrar')}>
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -116,18 +125,17 @@ export function Modal({ titulo, abierto, onCerrar, children }) {
 }
 
 export function Paginacion({ pagina, tamano, total, onCambiar }) {
+  const { t } = useTranslation()
   const paginas = Math.max(1, Math.ceil(total / tamano))
   return (
     <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
-      <span>
-        {total} registro{total === 1 ? '' : 's'} · página {pagina} de {paginas}
-      </span>
+      <span>{t('comun.paginacion', { count: total, pagina, paginas })}</span>
       <div className="flex gap-2">
         <Boton variante="secundario" className="px-3 py-1.5" disabled={pagina <= 1} onClick={() => onCambiar(pagina - 1)}>
-          Anterior
+          {t('comun.anterior')}
         </Boton>
         <Boton variante="secundario" className="px-3 py-1.5" disabled={pagina >= paginas} onClick={() => onCambiar(pagina + 1)}>
-          Siguiente
+          {t('comun.siguiente')}
         </Boton>
       </div>
     </div>

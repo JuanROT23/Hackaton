@@ -52,18 +52,20 @@ def test_carga_dentro_de_capacidad():
 
 def test_exceso_de_peso_y_volumen():
     problemas = problemas_de_carga(VAN, GENERAL, 2000, 15)
-    assert len(problemas) == 2
-    assert "peso" in problemas[0] and "1.500 kg" in problemas[0]
-    assert "volumen" in problemas[1]
+    assert [p.codigo for p in problemas] == ["peso_excedido", "volumen_excedido"]
+    assert "1.500 kg" in problemas[0].texto
+    assert problemas[0].datos == {"peso": 2000, "tipo": "Van", "maximo": 1500}
 
 
 def test_refrigeracion():
     assert problemas_de_carga(VAN, PERECEDEROS, 1000, 5) == []
-    assert "refrigeración" in problemas_de_carga(NHR, PERECEDEROS, 1000, 5)[0]
+    problema = problemas_de_carga(NHR, PERECEDEROS, 1000, 5)[0]
+    assert problema.codigo == "requiere_refrigeracion" and "refrigeración" in problema.texto
 
 
 def test_carga_peligrosa_sin_certificacion():
-    assert "peligrosa" in problemas_de_carga(NHR, PELIGROSA, 1000, 5)[0]
+    problema = problemas_de_carga(NHR, PELIGROSA, 1000, 5)[0]
+    assert problema.codigo == "carga_peligrosa" and problema.datos == {"carga": "Mercancía Peligrosa"}
 
 
 # ------------------------------------------------- motivos de descarte individuales
@@ -78,24 +80,32 @@ def _motivos(tarifas, flota, proveedor=ACTIVO, puntaje=PUNTAJE):
     return motivos_descarte(proveedor, tarifas, flota, puntaje, NHR, RUTA, NOMBRES)
 
 
+def _textos(tarifas, flota, **kw):
+    return [m.texto for m in _motivos(tarifas, flota, **kw)]
+
+
 def test_proveedor_que_cumple_todo_no_tiene_motivos():
     assert _motivos({2: Tarifa()}, (2, 3)) == []
 
 
 def test_sin_cobertura_de_la_ruta():
-    assert _motivos({}, (2, 3)) == ["Sin cobertura registrada para Buenaventura → Bogotá"]
+    (motivo,) = _motivos({}, (2, 3))
+    assert motivo.texto == "Sin cobertura registrada para Buenaventura → Bogotá"
+    assert motivo.codigo == "sin_cobertura" and motivo.datos == {"origen": "Buenaventura", "destino": "Bogotá"}
 
 
 def test_cubre_la_ruta_con_otro_vehiculo():
-    assert _motivos({1: Tarifa()}, (2, 3)) == ["Cubre la ruta, pero no con NHR (ofrece: Van)"]
+    (motivo,) = _motivos({1: Tarifa()}, (2, 3))
+    assert motivo.texto == "Cubre la ruta, pero no con NHR (ofrece: Van)"
+    assert motivo.codigo == "otro_vehiculo" and motivo.datos == {"tipo": "NHR", "ofrece": ["Van"]}
 
 
 def test_flota_ocupada_o_inexistente():
-    assert _motivos({2: Tarifa()}, (0, 3)) == ["Sin vehículos tipo NHR disponibles (3 en flota, todos ocupados)"]
-    assert _motivos({2: Tarifa()}, (0, 0)) == ["No tiene vehículos tipo NHR en su flota"]
+    assert _textos({2: Tarifa()}, (0, 3)) == ["Sin vehículos tipo NHR disponibles (3 en flota, todos ocupados)"]
+    assert _textos({2: Tarifa()}, (0, 0)) == ["No tiene vehículos tipo NHR en su flota"]
 
 
 def test_reune_todos_los_motivos():
     inactivo = Proveedor(id=2, nombre="Q", activo=False)
     motivos = _motivos({}, (0, 0), proveedor=inactivo, puntaje=None)
-    assert len(motivos) == 4 and motivos[0] == "Proveedor inactivo"
+    assert [m.codigo for m in motivos] == ["inactivo", "sin_cobertura", "sin_flota", "sin_puntaje"]

@@ -1,6 +1,7 @@
 """Esquemas de entrada y salida de las solicitudes."""
 from datetime import date
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -118,10 +119,19 @@ class ProveedorRecomendado(BaseModel):
     debilidad: str | None
 
 
+class MotivoSalida(BaseModel):
+    """Motivo de descarte en forma traducible: el frontend arma la frase con código y datos."""
+
+    codigo: str
+    datos: dict[str, Any]
+
+
 class DescartadoSalida(BaseModel):
     proveedor_id: int
     nombre: str
+    # Texto en español con todos los motivos (compatibilidad) y su versión estructurada
     motivo: str
+    motivos: list[MotivoSalida]
 
 
 class Simulacion(BaseModel):

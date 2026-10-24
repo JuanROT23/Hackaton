@@ -1,6 +1,8 @@
 import { Award, CheckCircle2, Circle, CircleCheck } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { COLOR_FACTOR } from '../theme/colores'
 import { formatoCOP, formatoHoras, formatoNumero } from '../utils/formato'
+import { tIndicador } from '../utils/traducir'
 import { Insignia } from './ui'
 
 function BarraCalificacion({ valor, color }) {
@@ -13,6 +15,7 @@ function BarraCalificacion({ valor, color }) {
 
 /** Tabla seleccionable con las transportadoras sugeridas. */
 export default function TablaTop3({ proveedores, seleccionado, onSeleccionar }) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-3">
       {proveedores.map((p) => {
@@ -38,59 +41,59 @@ export default function TablaTop3({ proveedores, seleccionado, onSeleccionar }) 
                   <p className="font-semibold text-slate-900">
                     {p.posicion}. {p.nombre}
                   </p>
-                  <p className="text-xs text-slate-500">{p.vehiculos_disponibles} vehículos disponibles</p>
+                  <p className="text-xs text-slate-500">{t('top3.vehiculosDisponibles', { count: p.vehiculos_disponibles })}</p>
                 </div>
               </div>
               {p.posicion === 1 ? (
                 <Insignia tono="bg-acento text-white ring-acento">
-                  <Award className="h-3.5 w-3.5" aria-hidden /> Mejor ajuste
+                  <Award className="h-3.5 w-3.5" aria-hidden /> {t('top3.mejorAjuste')}
                 </Insignia>
               ) : (
                 <Insignia tono="bg-cosco-50 text-cosco-700 ring-cosco-200">
-                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Elegible
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> {t('top3.elegible')}
                 </Insignia>
               )}
             </div>
 
             <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div>
-                <dt className="text-xs text-slate-500">Costo cotizado</dt>
+                <dt className="text-xs text-slate-500">{t('top3.costo')}</dt>
                 <dd className="font-semibold tabular-nums">{formatoCOP(p.precio_cop)}</dd>
               </div>
               <div>
-                <dt className="text-xs text-slate-500">Tiempo de tránsito</dt>
+                <dt className="text-xs text-slate-500">{t('top3.tiempoTransito')}</dt>
                 <dd className="font-semibold tabular-nums">{formatoHoras(p.tiempo_estimado_h)}</dd>
               </div>
               <div>
-                <dt className="text-xs text-slate-500">% Cumplimiento</dt>
+                <dt className="text-xs text-slate-500">{t('top3.cumplimiento')}</dt>
                 <dd className="font-semibold tabular-nums">{formatoNumero(p.puntaje_cumplimiento)} %</dd>
               </div>
               <div>
-                <dt className="text-xs text-slate-500">Score final</dt>
+                <dt className="text-xs text-slate-500">{t('top3.score')}</dt>
                 <dd className="text-lg font-bold text-cosco-800 tabular-nums">{formatoNumero(p.score_final)}</dd>
               </div>
             </dl>
 
             <div className="mt-3 grid grid-cols-3 gap-3 text-xs text-slate-500">
               {[
-                ['Costo', p.calificacion_precio, COLOR_FACTOR.precio],
-                ['Confiabilidad', p.calificacion_confiabilidad, COLOR_FACTOR.confiabilidad],
-                ['Rapidez', p.calificacion_tiempo, COLOR_FACTOR.tiempo],
-              ].map(([nombre, valor, color]) => (
-                <div key={nombre}>
+                ['precio', p.calificacion_precio],
+                ['confiabilidad', p.calificacion_confiabilidad],
+                ['tiempo', p.calificacion_tiempo],
+              ].map(([factor, valor]) => (
+                <div key={factor}>
                   <div className="mb-1 flex justify-between">
-                    <span>{nombre}</span>
+                    <span>{t(`factores.${factor}`)}</span>
                     <span className="tabular-nums">{formatoNumero(valor)}</span>
                   </div>
-                  <BarraCalificacion valor={valor} color={color} />
+                  <BarraCalificacion valor={valor} color={COLOR_FACTOR[factor]} />
                 </div>
               ))}
             </div>
 
             {(p.fortaleza || p.debilidad) && (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                {p.fortaleza && <span className="text-emerald-700">▲ {p.fortaleza}</span>}
-                {p.debilidad && <span className="text-red-700">▼ {p.debilidad}</span>}
+                {p.fortaleza && <span className="text-emerald-700">▲ {tIndicador(t, p.fortaleza)}</span>}
+                {p.debilidad && <span className="text-red-700">▼ {tIndicador(t, p.debilidad)}</span>}
               </div>
             )}
           </button>

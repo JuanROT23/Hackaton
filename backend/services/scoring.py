@@ -28,12 +28,26 @@ class Requerimiento:
 
 
 @dataclass
+class Motivo:
+    """Por qué algo no cumple un filtro: código y datos (para traducir) y el texto en español."""
+
+    codigo: str
+    datos: dict
+    texto: str
+
+
+@dataclass
 class Descartado:
     """Proveedor que no pasa un filtro duro."""
 
     proveedor_id: int
     nombre: str
-    motivo: str
+    motivos: list[Motivo]
+
+    @property
+    def motivo(self) -> str:
+        """Todos los motivos en un solo texto (español)."""
+        return " · ".join(m.texto for m in self.motivos)
 
 
 @dataclass
@@ -73,11 +87,19 @@ def pesos_desde_niveles(nivel_precio: str, nivel_confiabilidad: str, nivel_tiemp
 
 
 class SinProveedoresCompatibles(Exception):
-    """Ningún proveedor puede atender la solicitud; incluye los motivos."""
+    """Ningún proveedor puede atender la solicitud.
 
-    def __init__(self, mensaje: str, descartados: list[Descartado]):
+    codigo = 'capacidad' (el vehículo no sirve para la carga; ver `problemas`)
+    o 'cobertura' (nadie tiene tarifa y vehículos libres; ver `descartados`).
+    """
+
+    def __init__(self, mensaje: str, codigo: str, datos: dict, descartados: list[Descartado],
+                 problemas: list[Motivo] | None = None):
         self.mensaje = mensaje
+        self.codigo = codigo
+        self.datos = datos
         self.descartados = descartados
+        self.problemas = problemas or []
         super().__init__(mensaje)
 
 
@@ -88,19 +110,26 @@ def _num(valor: float, decimales: int = 0) -> str:
     return f"{valor:,.{decimales}f}".replace(",", "_").replace(".", ",").replace("_", ".")
 
 
-def problemas_de_carga(tipo: TipoVehiculo, carga: TipoCarga, peso_kg: float, volumen_m3: float) -> list[str]:
+def problemas_de_carga(tipo: TipoVehiculo, carga: TipoCarga, peso_kg: float, volumen_m3: float) -> list[Motivo]:
     """Filtros que dependen solo de la solicitud: si fallan, ningún proveedor sirve."""
     problemas = []
     if peso_kg > tipo.peso_max_kg:
-        problemas.append(f"el peso ({_num(peso_kg)} kg) supera la capacidad de {tipo.nombre} "
-                         f"({_num(tipo.peso_max_kg)} kg)")
+        problemas.append(Motivo(
+            "peso_excedido", {"peso": peso_kg, "tipo": tipo.nombre, "maximo": tipo.peso_max_kg},
+            f"el peso ({_num(peso_kg)} kg) supera la capacidad de {tipo.nombre} ({_num(tipo.peso_max_kg)} kg)"))
     if volumen_m3 > tipo.volumen_max_m3:
-        problemas.append(f"el volumen ({_num(volumen_m3, 2)} m³) supera la capacidad de {tipo.nombre} "
-                         f"({_num(tipo.volumen_max_m3)} m³)")
+        problemas.append(Motivo(
+            "volumen_excedido", {"volumen": volumen_m3, "tipo": tipo.nombre, "maximo": tipo.volumen_max_m3},
+            f"el volumen ({_num(volumen_m3, 2)} m³) supera la capacidad de {tipo.nombre} "
+            f"({_num(tipo.volumen_max_m3)} m³)"))
     if carga.requiere_refrigeracion and not tipo.es_refrigerado:
-        problemas.append(f"{carga.nombre} requiere refrigeración y {tipo.nombre} no es refrigerado")
+        problemas.append(Motivo(
+            "requiere_refrigeracion", {"carga": carga.nombre, "tipo": tipo.nombre},
+            f"{carga.nombre} requiere refrigeración y {tipo.nombre} no es refrigerado"))
     if carga.es_peligrosa:
-        problemas.append(f"{carga.nombre}: ningún proveedor tiene certificación para carga peligrosa registrada")
+        problemas.append(Motivo(
+            "carga_peligrosa", {"carga": carga.nombre},
+            f"{carga.nombre}: ningún proveedor tiene certificación para carga peligrosa registrada"))
     return problemas
 
 
@@ -124,7 +153,7 @@ def _tarifas_ruta(sesion: Session, ruta_id: int) -> dict[int, dict[int, Tarifa]]
 
 def motivos_descarte(proveedor: Proveedor, tarifas_ruta: dict[int, Tarifa], flota: tuple[int, int],
                      puntaje: PuntajeProveedor | None, tipo: TipoVehiculo, ruta: Ruta,
-                     nombres_tipo: dict[int, str]) -> list[str]:
+                     nombres_tipo: dict[int, str]) -> list[Motivo]:
     """TODOS los filtros duros que no cumple este proveedor, con su detalle (lista vacía = pasa).
 
     `tarifas_ruta` son las tarifas del proveedor en la ruta, por tipo de vehículo;
@@ -132,19 +161,25 @@ def motivos_descarte(proveedor: Proveedor, tarifas_ruta: dict[int, Tarifa], flot
     """
     motivos = []
     if not proveedor.activo:
-        motivos.append("Proveedor inactivo")
+        motivos.append(Motivo("inactivo", {}, "Proveedor inactivo"))
     if not tarifas_ruta:
-        motivos.append(f"Sin cobertura registrada para {ruta.origen_municipio} → {ruta.destino_municipio}")
+        motivos.append(Motivo(
+            "sin_cobertura", {"origen": ruta.origen_municipio, "destino": ruta.destino_municipio},
+            f"Sin cobertura registrada para {ruta.origen_municipio} → {ruta.destino_municipio}"))
     elif tipo.id not in tarifas_ruta:
-        ofrece = ", ".join(sorted(nombres_tipo[t] for t in tarifas_ruta))
-        motivos.append(f"Cubre la ruta, pero no con {tipo.nombre} (ofrece: {ofrece})")
+        ofrece = sorted(nombres_tipo[t] for t in tarifas_ruta)
+        motivos.append(Motivo(
+            "otro_vehiculo", {"tipo": tipo.nombre, "ofrece": ofrece},
+            f"Cubre la ruta, pero no con {tipo.nombre} (ofrece: {', '.join(ofrece)})"))
     disponibles, total = flota
     if total == 0:
-        motivos.append(f"No tiene vehículos tipo {tipo.nombre} en su flota")
+        motivos.append(Motivo("sin_flota", {"tipo": tipo.nombre},
+                              f"No tiene vehículos tipo {tipo.nombre} en su flota"))
     elif disponibles == 0:
-        motivos.append(f"Sin vehículos tipo {tipo.nombre} disponibles ({total} en flota, todos ocupados)")
+        motivos.append(Motivo("flota_ocupada", {"tipo": tipo.nombre, "total": total},
+                              f"Sin vehículos tipo {tipo.nombre} disponibles ({total} en flota, todos ocupados)"))
     if puntaje is None:
-        motivos.append("Sin puntaje histórico calculado")
+        motivos.append(Motivo("sin_puntaje", {}, "Sin puntaje histórico calculado"))
     return motivos
 
 
@@ -194,7 +229,9 @@ def recomendar(sesion: Session, req: Requerimiento, pesos: dict[str, float]) -> 
     problemas = problemas_de_carga(tipo, carga, req.peso_kg, req.volumen_m3)
     if problemas:
         raise SinProveedoresCompatibles(
-            "Capacidad no disponible: " + "; ".join(problemas) + ". Revise el tipo de vehículo o de carga.", []
+            "Capacidad no disponible: " + "; ".join(p.texto for p in problemas)
+            + ". Revise el tipo de vehículo o de carga.",
+            "capacidad", {}, [], problemas,
         )
 
     ruta = sesion.get(Ruta, req.ruta_id)
@@ -208,7 +245,7 @@ def recomendar(sesion: Session, req: Requerimiento, pesos: dict[str, float]) -> 
         motivos = motivos_descarte(proveedor, tarifas_ruta.get(proveedor.id, {}), flota.get(proveedor.id, (0, 0)),
                                    puntajes.get(proveedor.id), tipo, ruta, nombres_tipo)
         if motivos:
-            descartados.append(Descartado(proveedor.id, proveedor.nombre, " · ".join(motivos)))
+            descartados.append(Descartado(proveedor.id, proveedor.nombre, motivos))
         else:
             compatibles.append(proveedor)
     # Para la tarifa y los vehículos libres de los que sí pasan
@@ -218,7 +255,8 @@ def recomendar(sesion: Session, req: Requerimiento, pesos: dict[str, float]) -> 
     if not compatibles:
         raise SinProveedoresCompatibles(
             f"Cobertura no disponible: ningún proveedor activo tiene tarifa y vehículos {tipo.nombre} "
-            "disponibles para esta ruta.", descartados
+            "disponibles para esta ruta.",
+            "cobertura", {"tipo": tipo.nombre}, descartados,
         )
 
     incidentes = _tasa_incidentes(sesion)

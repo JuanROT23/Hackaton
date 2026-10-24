@@ -19,6 +19,7 @@ from models import (
 )
 from schemas.solicitudes import (
     DescartadoSalida,
+    MotivoSalida,
     PaginaSolicitudes,
     ProveedorRecomendado,
     Simulacion,
@@ -30,6 +31,7 @@ from schemas.solicitudes import (
 from services.scoring import (
     Calificado,
     Descartado,
+    Motivo,
     Requerimiento,
     SinProveedoresCompatibles,
     pesos_desde_niveles,
@@ -40,10 +42,25 @@ router = APIRouter(tags=["solicitudes"])
 DECIMALES = 4
 
 
+def _error(codigo_http: int, mensaje: str, codigo: str, datos: dict | None = None, **extra) -> HTTPException:
+    """Error con mensaje en español y, para traducir en el frontend, un código y sus datos."""
+    return HTTPException(codigo_http, {"mensaje": mensaje, "codigo": codigo, "datos": datos or {}, **extra})
+
+
 def _exigir_existente(sesion: Session, modelo, id_: int, entidad: str) -> None:
     """404 si el id no existe (en vez de un error 500 por la llave foránea)."""
     if sesion.get(modelo, id_) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"{entidad} con id {id_} no existe")
+        raise _error(status.HTTP_404_NOT_FOUND, f"{entidad} con id {id_} no existe",
+                     "no_existe", {"entidad": modelo.__tablename__, "id": id_})
+
+
+def _motivos_salida(motivos: list[Motivo]) -> list[MotivoSalida]:
+    return [MotivoSalida(codigo=m.codigo, datos=m.datos) for m in motivos]
+
+
+def _descartado_salida(d: Descartado) -> DescartadoSalida:
+    return DescartadoSalida(proveedor_id=d.proveedor_id, nombre=d.nombre, motivo=d.motivo,
+                            motivos=_motivos_salida(d.motivos))
 
 
 def _evaluar(sesion: Session, datos: SolicitudCrear) -> tuple[dict[str, float], list[Calificado], list[Descartado]]:
@@ -51,10 +68,12 @@ def _evaluar(sesion: Session, datos: SolicitudCrear) -> tuple[dict[str, float], 
     _exigir_existente(sesion, Ruta, datos.ruta_id, "Ruta")
     ruta = sesion.get(Ruta, datos.ruta_id)
     if ruta.origen_municipio not in PUERTOS_ORIGEN:
-        raise HTTPException(
+        raise _error(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             f"La ruta {ruta.origen_municipio} → {ruta.destino_municipio} no es operativa: "
             f"solo se aceptan rutas con origen en {' o '.join(PUERTOS_ORIGEN)}.",
+            "ruta_no_operativa",
+            {"origen": ruta.origen_municipio, "destino": ruta.destino_municipio, "puertos": list(PUERTOS_ORIGEN)},
         )
     _exigir_existente(sesion, TipoCarga, datos.tipo_carga_id, "Tipo de carga")
     _exigir_existente(sesion, TipoVehiculo, datos.tipo_vehiculo_id, "Tipo de vehículo")
@@ -64,10 +83,11 @@ def _evaluar(sesion: Session, datos: SolicitudCrear) -> tuple[dict[str, float], 
     try:
         ranking, descartados = recomendar(sesion, requerimiento, pesos)
     except SinProveedoresCompatibles as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, {
-            "mensaje": e.mensaje,
-            "descartados": [DescartadoSalida(**vars(d)).model_dump() for d in e.descartados],
-        })
+        raise _error(
+            status.HTTP_409_CONFLICT, e.mensaje, e.codigo, e.datos,
+            problemas=[m.model_dump() for m in _motivos_salida(e.problemas)],
+            descartados=[_descartado_salida(d).model_dump() for d in e.descartados],
+        )
     return pesos, ranking, descartados
 
 
@@ -94,7 +114,7 @@ def simular_solicitud(datos: SolicitudCrear, sesion: Session = Depends(get_db)):
         pesos={k: round(v, DECIMALES) for k, v in pesos.items()},
         recomendado=sugeridos[0],
         ranking=sugeridos,
-        descartados=[DescartadoSalida(**vars(d)) for d in descartados],
+        descartados=[_descartado_salida(d) for d in descartados],
     )
 
 
@@ -109,10 +129,11 @@ def confirmar_solicitud(datos: SolicitudConfirmar, sesion: Session = Depends(get
     pesos, ranking, descartados = _evaluar(sesion, datos)
     elegido = next((c for c in ranking if c.proveedor_id == datos.proveedor_id), None)
     if elegido is None:
-        motivo = next((d.motivo for d in descartados if d.proveedor_id == datos.proveedor_id),
-                      "no es compatible con la solicitud")
-        raise HTTPException(status.HTTP_409_CONFLICT,
-                            {"mensaje": f"El proveedor elegido ya no es válido: {motivo}", "descartados": []})
+        propio = next((d for d in descartados if d.proveedor_id == datos.proveedor_id), None)
+        motivo = propio.motivo if propio else "no es compatible con la solicitud"
+        problemas = [m.model_dump() for m in _motivos_salida(propio.motivos)] if propio else []
+        raise _error(status.HTTP_409_CONFLICT, f"El proveedor elegido ya no es válido: {motivo}",
+                     "proveedor_no_valido", {}, problemas=problemas, descartados=[])
 
     solicitud = Solicitud(
         **datos.model_dump(exclude={"proveedor_id"}),

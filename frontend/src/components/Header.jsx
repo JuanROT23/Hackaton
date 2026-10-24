@@ -1,22 +1,59 @@
-import { Anchor, BarChart3, ClipboardList, Headset, LayoutDashboard } from 'lucide-react'
+import { Anchor, BarChart3, ClipboardList, Globe, Headset, LayoutDashboard } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { IDIOMAS } from '../i18n'
 
+// El texto de cada pestaña sale del diccionario: header.pestanas.<id>
 export const PESTANAS = [
-  { id: 'resumen', etiqueta: 'Resumen', icono: LayoutDashboard },
-  { id: 'solicitudes', etiqueta: 'Solicitudes', icono: ClipboardList },
-  { id: 'transportadoras', etiqueta: 'Transportadoras / Seguimiento', icono: BarChart3 },
+  { id: 'resumen', icono: LayoutDashboard },
+  { id: 'solicitudes', icono: ClipboardList },
+  { id: 'transportadoras', icono: BarChart3 },
 ]
+
+/** Interruptor ES | EN: el idioma activo queda resaltado en blanco. */
+function SelectorIdioma() {
+  const { t, i18n } = useTranslation()
+  const actual = i18n.resolvedLanguage
+  return (
+    <div role="group" aria-label={t('idioma.etiqueta')} className="flex items-center gap-1.5">
+      <Globe className="h-3.5 w-3.5" aria-hidden />
+      <div className="flex rounded-full bg-white/10 p-0.5 ring-1 ring-white/20">
+        {IDIOMAS.map((lng) => {
+          const activo = lng === actual
+          return (
+            <button
+              key={lng}
+              type="button"
+              onClick={() => i18n.changeLanguage(lng)}
+              aria-pressed={activo}
+              title={t(`idioma.${lng}`)}
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wider transition ${
+                activo ? 'bg-white text-cosco-900 shadow-sm' : 'text-cosco-100/80 hover:text-white'
+              }`}
+            >
+              {lng.toUpperCase()}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 /** Barra corporativa + encabezado con el nombre de la app y las 3 pestañas (fijo al hacer scroll). */
 export default function Header({ activa, onCambiar, onSoporte }) {
+  const { t } = useTranslation()
   return (
     <header className="sticky top-0 z-[1100] shadow-lg">
       {/* Barra corporativa superior */}
       <div className="bg-cosco-950 text-[11px] text-cosco-100/80">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-1.5 sm:px-6">
-          <span className="hidden font-medium tracking-wide sm:inline">COSCO SHIPPING · Colombia</span>
-          <button type="button" onClick={onSoporte} className="ml-auto flex items-center gap-1 font-semibold tracking-wider hover:text-white">
-            <Headset className="h-3.5 w-3.5" aria-hidden /> SOPORTE
-          </button>
+          <span className="hidden font-medium tracking-wide sm:inline">{t('header.pais')}</span>
+          <div className="ml-auto flex items-center gap-5">
+            <SelectorIdioma />
+            <button type="button" onClick={onSoporte} className="flex items-center gap-1 font-semibold tracking-wider hover:text-white">
+              <Headset className="h-3.5 w-3.5" aria-hidden /> {t('header.soporte')}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -31,12 +68,12 @@ export default function Header({ activa, onCambiar, onSoporte }) {
               <h1 className="text-xl font-extrabold tracking-tight">
                 COSCO <span className="font-semibold text-cosco-100">Decision Hub</span>
               </h1>
-              <p className="font-script text-lg leading-tight text-cosco-100">Conectando puertos con decisiones inteligentes</p>
+              <p className="font-script text-lg leading-tight text-cosco-100">{t('header.eslogan')}</p>
             </div>
           </div>
 
-          <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Secciones">
-            {PESTANAS.map(({ id, etiqueta, icono: Icono }) => {
+          <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label={t('header.secciones')}>
+            {PESTANAS.map(({ id, icono: Icono }) => {
               const seleccionada = id === activa
               return (
                 <button
@@ -51,7 +88,7 @@ export default function Header({ activa, onCambiar, onSoporte }) {
                   }`}
                 >
                   <Icono className="h-4 w-4" aria-hidden />
-                  {etiqueta}
+                  {t(`header.pestanas.${id}`)}
                 </button>
               )
             })}

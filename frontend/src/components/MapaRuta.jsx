@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { CENTRO_COLOMBIA, COORDENADAS } from '../data/municipios'
 import { COLORES } from '../theme/colores'
@@ -58,6 +59,7 @@ export default function MapaRuta({ origen, destino }) {
   const desde = COORDENADAS[origen]
   const hasta = COORDENADAS[destino]
   const { puntos, real, cargando } = useTrazado(desde, hasta)
+  const { t } = useTranslation()
 
   return (
     <div>
@@ -85,10 +87,10 @@ export default function MapaRuta({ origen, destino }) {
                 />
               )}
               <CircleMarker center={desde} radius={8} pathOptions={{ color: COLORES.blanco, weight: 2, fillColor: COLORES.primario, fillOpacity: 1 }}>
-                <Tooltip permanent direction="top" offset={[0, -8]}>Origen: {origen}</Tooltip>
+                <Tooltip permanent direction="top" offset={[0, -8]}>{t('mapa.origen', { municipio: origen })}</Tooltip>
               </CircleMarker>
               <CircleMarker center={hasta} radius={8} pathOptions={{ color: COLORES.blanco, weight: 2, fillColor: COLORES.acento, fillOpacity: 1 }}>
-                <Tooltip permanent direction="top" offset={[0, -8]}>Destino: {destino}</Tooltip>
+                <Tooltip permanent direction="top" offset={[0, -8]}>{t('mapa.destino', { municipio: destino })}</Tooltip>
               </CircleMarker>
               <Encuadre puntos={puntos} />
             </>
@@ -96,13 +98,7 @@ export default function MapaRuta({ origen, destino }) {
         </MapContainer>
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        {!desde || !hasta
-          ? 'No hay coordenadas para esta ruta.'
-          : cargando
-            ? 'Calculando recorrido por carretera…'
-            : real
-              ? 'Recorrido por carretera (OpenStreetMap / OSRM).'
-              : 'Trazado aproximado en línea recta (no se pudo obtener el recorrido por carretera).'}
+        {t(!desde || !hasta ? 'mapa.sinCoordenadas' : cargando ? 'mapa.calculando' : real ? 'mapa.carretera' : 'mapa.recta')}
       </p>
     </div>
   )

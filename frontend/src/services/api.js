@@ -4,23 +4,29 @@
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '')
 const API = `${API_URL}/api/v1`
 
-/** Error del backend con su código HTTP y un mensaje legible. */
+/** Error de la API. `codigo` y `datos` permiten mostrarlo en cualquier idioma (ver utils/traducir.js);
+ *  `message` queda como texto de respaldo en español. */
 export class ApiError extends Error {
-  constructor(status, mensaje, detalle) {
+  constructor(status, mensaje, { codigo = 'inesperado', datos = {}, detalle } = {}) {
     super(mensaje)
     this.status = status
+    this.codigo = codigo
+    this.datos = datos
     this.detalle = detalle
   }
 }
 
-/** Convierte el "detail" de FastAPI (texto, objeto o lista de errores) en un mensaje. */
-function mensajeDeError(detail) {
-  if (!detail) return 'Error inesperado del servidor'
-  if (typeof detail === 'string') return detail
-  if (Array.isArray(detail)) {
-    return detail.map((e) => `${e.loc?.slice(1).join('.') || 'dato'}: ${e.msg}`).join(' · ')
+/** Convierte el "detail" de FastAPI (texto, objeto o lista de errores) en un ApiError. */
+function errorDesdeRespuesta(status, detail) {
+  if (detail && typeof detail === 'object' && !Array.isArray(detail) && detail.codigo) {
+    return new ApiError(status, detail.mensaje, { codigo: detail.codigo, datos: detail.datos, detalle: detail })
   }
-  return detail.mensaje || 'Error inesperado del servidor'
+  if (Array.isArray(detail)) {
+    const texto = detail.map((e) => `${e.loc?.slice(1).join('.') || 'dato'}: ${e.msg}`).join(' · ')
+    return new ApiError(status, texto, { codigo: 'datos_invalidos', detalle: detail })
+  }
+  const texto = typeof detail === 'string' ? detail : detail?.mensaje || 'Error inesperado del servidor'
+  return new ApiError(status, texto, { codigo: status >= 500 ? 'interno' : 'inesperado', detalle: detail })
 }
 
 async function pedir(ruta, opciones = {}) {
@@ -31,12 +37,10 @@ async function pedir(ruta, opciones = {}) {
       ...opciones,
     })
   } catch {
-    throw new ApiError(0, `No se pudo conectar con el backend (${API_URL}). Verifique que esté en línea.`)
+    throw new ApiError(0, `No se pudo conectar con el backend (${API_URL}).`, { codigo: 'sin_conexion', datos: { url: API_URL } })
   }
   const cuerpo = await respuesta.json().catch(() => null)
-  if (!respuesta.ok) {
-    throw new ApiError(respuesta.status, mensajeDeError(cuerpo?.detail), cuerpo?.detail)
-  }
+  if (!respuesta.ok) throw errorDesdeRespuesta(respuesta.status, cuerpo?.detail)
   return cuerpo
 }
 

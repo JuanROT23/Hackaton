@@ -1,18 +1,22 @@
 import { Calculator, Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { PUERTOS_COSCO } from '../data/municipios'
-import { formatoPct } from '../utils/formato'
+import { formatoPct, localeActual } from '../utils/formato'
+import { tCatalogo, tError } from '../utils/traducir'
 import { CRITERIOS } from './DonutPesos'
 import { Alerta, Boton } from './ui'
 
-// Posición del slider (1, 2, 3) -> nivel. Mismo cálculo que el backend: se divide por la suma
+// Posición del slider (1, 2, 3) -> nivel. Mismo cálculo que el backend: se divide por la suma.
+// Estos valores van a la API y NO se traducen; solo se traduce lo que se muestra (solicitud.niveles.*)
 const NIVELES = ['Baja', 'Media', 'Alta']
 const VALOR_NIVEL = { Baja: 1, Media: 2, Alta: 3 }
 
+// El título de cada slider sale del diccionario: solicitud.importancia.<clave>
 const PRIORIDADES = [
-  { campo: 'nivel_precio', clave: 'precio', titulo: 'Importancia del precio' },
-  { campo: 'nivel_confiabilidad', clave: 'confiabilidad', titulo: 'Importancia de la confiabilidad' },
-  { campo: 'nivel_tiempo', clave: 'tiempo', titulo: 'Importancia del cumplimiento de tiempo' },
+  { campo: 'nivel_precio', clave: 'precio' },
+  { campo: 'nivel_confiabilidad', clave: 'confiabilidad' },
+  { campo: 'nivel_tiempo', clave: 'tiempo' },
 ]
 
 export const FORMULARIO_VACIO = {
@@ -27,11 +31,11 @@ export const FORMULARIO_VACIO = {
   nivel_tiempo: 'Media',
 }
 
-/** Solo rutas que SALEN de un puerto COSCO, agrupadas por puerto: [[etiqueta, rutas], ...].
+/** Solo rutas que SALEN de un puerto COSCO, agrupadas por puerto: [[puerto, rutas], ...].
  *  El backend ya entrega solo estas rutas; el filtro se repite aquí por seguridad. */
 function rutasOperativas(rutas) {
   return PUERTOS_COSCO.map((puerto) => [
-    `⚓ Desde ${puerto}`,
+    puerto,
     rutas
       .filter((r) => r.origen_municipio === puerto)
       .sort((a, b) => a.destino_municipio.localeCompare(b.destino_municipio)),
@@ -45,15 +49,16 @@ function pesosPrevios(form) {
   return Object.fromEntries(PRIORIDADES.map(({ clave }, i) => [clave, valores[i] / total]))
 }
 
-/** Valida en el navegador y convierte el formulario al cuerpo que espera la API. */
+/** Valida en el navegador y convierte el formulario al cuerpo que espera la API.
+ *  Los errores son claves (solicitud.faltantes.*) para traducirlos al mostrarlos. */
 function aCuerpoApi(f) {
   const errores = []
-  if (!f.cliente_nombre.trim()) errores.push('el nombre del cliente')
-  if (!(Number(f.peso_kg) > 0)) errores.push('un peso mayor a 0')
-  if (!(Number(f.volumen_m3) > 0)) errores.push('un volumen mayor a 0')
-  if (!f.ruta_id) errores.push('la ruta')
-  if (!f.tipo_vehiculo_id) errores.push('el tipo de vehículo')
-  if (!f.tipo_carga_id) errores.push('el tipo de carga')
+  if (!f.cliente_nombre.trim()) errores.push('cliente')
+  if (!(Number(f.peso_kg) > 0)) errores.push('peso')
+  if (!(Number(f.volumen_m3) > 0)) errores.push('volumen')
+  if (!f.ruta_id) errores.push('ruta')
+  if (!f.tipo_vehiculo_id) errores.push('tipoVehiculo')
+  if (!f.tipo_carga_id) errores.push('tipoCarga')
   if (errores.length) return { errores }
   return {
     cuerpo: {
@@ -81,6 +86,7 @@ function Campo({ etiqueta, children }) {
 
 /** Línea deslizante de 3 posiciones: Baja (izquierda), Media (centro), Alta (derecha). */
 function SelectorNivel({ nombre, titulo, valor, peso, color, onCambiar }) {
+  const { t } = useTranslation()
   const posicion = VALOR_NIVEL[valor]
   // Relleno de la línea hasta la posición actual (0 %, 50 % o 100 %)
   const relleno = `${((posicion - 1) / 2) * 100}%`
@@ -100,7 +106,7 @@ function SelectorNivel({ nombre, titulo, valor, peso, color, onCambiar }) {
         step="1"
         value={posicion}
         onChange={(e) => onCambiar(NIVELES[Number(e.target.value) - 1])}
-        aria-valuetext={valor}
+        aria-valuetext={t(`solicitud.niveles.${valor}`)}
         className="slider-nivel w-full"
         style={{ '--color-slider': color, '--relleno': relleno }}
       />
@@ -113,7 +119,7 @@ function SelectorNivel({ nombre, titulo, valor, peso, color, onCambiar }) {
             onClick={() => onCambiar(nivel)}
             className={nivel === valor ? 'font-semibold text-slate-900' : 'text-slate-400 hover:text-slate-600'}
           >
-            {nivel}
+            {t(`solicitud.niveles.${nivel}`)}
           </button>
         ))}
       </div>
@@ -126,6 +132,7 @@ const ESTILO_CAMPO =
 
 /** Formulario de nueva solicitud: datos operativos + importancia de precio, confiabilidad y tiempo. */
 export default function SolicitudForm({ catalogos, inicial, enviando, errorApi, onSimular }) {
+  const { t } = useTranslation()
   const [form, setForm] = useState(inicial ?? FORMULARIO_VACIO)
   const [errores, setErrores] = useState([])
   const cambiar = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }))
@@ -143,23 +150,23 @@ export default function SolicitudForm({ catalogos, inicial, enviando, errorApi, 
   return (
     <form onSubmit={enviar} className="space-y-6" noValidate>
       <section>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">A. Datos operativos</h3>
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('solicitud.seccionDatos')}</h3>
         <div className="grid gap-4 rounded-xl bg-white p-4 ring-1 ring-slate-200 sm:grid-cols-2 lg:grid-cols-3">
-          <Campo etiqueta="Nombre del cliente">
+          <Campo etiqueta={t('solicitud.cliente')}>
             <input className={ESTILO_CAMPO} maxLength={100} value={form.cliente_nombre} onChange={cambiar('cliente_nombre')} />
           </Campo>
-          <Campo etiqueta="Peso (kg)">
+          <Campo etiqueta={t('solicitud.peso')}>
             <input className={ESTILO_CAMPO} type="number" min="1" max="50000" step="any" value={form.peso_kg} onChange={cambiar('peso_kg')} />
           </Campo>
-          <Campo etiqueta="Volumen (m³)">
+          <Campo etiqueta={t('solicitud.volumen')}>
             <input className={ESTILO_CAMPO} type="number" min="0.01" max="150" step="any" value={form.volumen_m3} onChange={cambiar('volumen_m3')} />
           </Campo>
           <div className="sm:col-span-2 lg:col-span-1">
-            <Campo etiqueta="Ruta (origen → destino)">
+            <Campo etiqueta={t('solicitud.ruta')}>
               <select className={ESTILO_CAMPO} value={form.ruta_id} onChange={cambiar('ruta_id')}>
-                <option value="">Seleccione…</option>
-                {gruposRutas.map(([grupo, rutas]) => (
-                  <optgroup key={grupo} label={grupo}>
+                <option value="">{t('solicitud.seleccione')}</option>
+                {gruposRutas.map(([puerto, rutas]) => (
+                  <optgroup key={puerto} label={t('solicitud.desdePuerto', { puerto })}>
                     {rutas.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.origen_municipio} → {r.destino_municipio} ({r.distancia_km} km)
@@ -170,25 +177,26 @@ export default function SolicitudForm({ catalogos, inicial, enviando, errorApi, 
               </select>
             </Campo>
           </div>
-          <Campo etiqueta="Tipo de vehículo">
+          <Campo etiqueta={t('solicitud.tipoVehiculo')}>
             <select className={ESTILO_CAMPO} value={form.tipo_vehiculo_id} onChange={cambiar('tipo_vehiculo_id')}>
-              <option value="">Seleccione…</option>
-              {catalogos.tiposVehiculo.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre} · hasta {t.peso_max_kg.toLocaleString('es-CO')} kg / {t.volumen_max_m3} m³
-                  {t.es_refrigerado ? ' · refrigerado' : ''}
+              <option value="">{t('solicitud.seleccione')}</option>
+              {catalogos.tiposVehiculo.map((tipo) => (
+                <option key={tipo.id} value={tipo.id}>
+                  {tCatalogo(t, tipo.nombre)} ·{' '}
+                  {t('solicitud.capacidad', { peso: tipo.peso_max_kg.toLocaleString(localeActual()), volumen: tipo.volumen_max_m3 })}
+                  {tipo.es_refrigerado ? ` · ${t('solicitud.refrigerado')}` : ''}
                 </option>
               ))}
             </select>
           </Campo>
-          <Campo etiqueta="Tipo de carga">
+          <Campo etiqueta={t('solicitud.tipoCarga')}>
             <select className={ESTILO_CAMPO} value={form.tipo_carga_id} onChange={cambiar('tipo_carga_id')}>
-              <option value="">Seleccione…</option>
-              {catalogos.tiposCarga.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre}
-                  {t.requiere_refrigeracion ? ' (refrigerada)' : ''}
-                  {t.es_peligrosa ? ' (peligrosa)' : ''}
+              <option value="">{t('solicitud.seleccione')}</option>
+              {catalogos.tiposCarga.map((tipo) => (
+                <option key={tipo.id} value={tipo.id}>
+                  {tCatalogo(t, tipo.nombre)}
+                  {tipo.requiere_refrigeracion ? ` (${t('solicitud.refrigerada')})` : ''}
+                  {tipo.es_peligrosa ? ` (${t('solicitud.peligrosa')})` : ''}
                 </option>
               ))}
             </select>
@@ -197,16 +205,14 @@ export default function SolicitudForm({ catalogos, inicial, enviando, errorApi, 
       </section>
 
       <section>
-        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">B. Prioridades del cliente</h3>
-        <p className="mb-3 text-sm text-slate-500">
-          Deslice cada línea según qué tan importante es el factor. El porcentaje muestra cuánto pesará en el ranking.
-        </p>
+        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('solicitud.seccionPrioridades')}</h3>
+        <p className="mb-3 text-sm text-slate-500">{t('solicitud.ayudaPrioridades')}</p>
         <div className="grid gap-3 lg:grid-cols-3">
-          {PRIORIDADES.map(({ campo, clave, titulo }) => (
+          {PRIORIDADES.map(({ campo, clave }) => (
             <SelectorNivel
               key={campo}
               nombre={campo}
-              titulo={titulo}
+              titulo={t(`solicitud.importancia.${clave}`)}
               valor={form[campo]}
               peso={pesos[clave]}
               color={CRITERIOS.find((c) => c.clave === clave).color}
@@ -216,13 +222,17 @@ export default function SolicitudForm({ catalogos, inicial, enviando, errorApi, 
         </div>
       </section>
 
-      {errores.length > 0 && <Alerta>Falta completar: {errores.join(', ')}.</Alerta>}
-      {errorApi && <Alerta>{errorApi}</Alerta>}
+      {errores.length > 0 && (
+        <Alerta>
+          {t('solicitud.faltaCompletar', { campos: errores.map((e) => t(`solicitud.faltantes.${e}`)).join(', ') })}
+        </Alerta>
+      )}
+      {errorApi && <Alerta>{tError(t, errorApi)}</Alerta>}
 
       <div className="flex justify-end">
         <Boton type="submit" disabled={enviando} className="px-6">
           {enviando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Calculator className="h-4 w-4" aria-hidden />}
-          Calcular y Simular Recomendación
+          {t('solicitud.simular')}
         </Boton>
       </div>
     </form>
