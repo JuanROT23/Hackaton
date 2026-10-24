@@ -8,7 +8,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from config.settings import FRONTEND_ORIGIN
 from routes import catalogos, proveedores, solicitudes
 
 PREFIJO = "/api/v1"
@@ -22,11 +21,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Demo: se aceptan todos los orígenes (Netlify, localhost, etc.).
+# Antes de un uso real, restringir allow_origins al dominio del frontend (FRONTEND_ORIGIN).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN],
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 for modulo in (catalogos, proveedores, solicitudes):
